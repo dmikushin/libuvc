@@ -252,6 +252,51 @@ uvc_error_t uvc_yuyv2bgr(uvc_frame_t *in, uvc_frame_t *out) {
   return UVC_SUCCESS;
 }
 
+#define IYUYV2R_2(pyuv, pr) { \
+    int r = (22987 * ((pyuv)[3] - 128)) >> 14; \
+    (pr)[0] = sat(*(pyuv) + r); \
+    (pr)[1] = sat((pyuv)[2] + r); \
+    }
+#define IYUYV2R_16(pyuv, pr) IYUYV2R_8(pyuv, pr); IYUYV2R_8(pyuv + 16, pr + 8);
+#define IYUYV2R_8(pyuv, pr) IYUYV2R_4(pyuv, pr); IYUYV2R_4(pyuv + 8, pr + 4);
+#define IYUYV2R_4(pyuv, pr) IYUYV2R_2(pyuv, pr); IYUYV2R_2(pyuv + 4, pr + 2);
+
+/** @brief Convert a frame from YUYV to RED8
+ * @ingroup frame
+ *
+ * @param in YUYV frame
+ * @param out BGR frame
+ */
+uvc_error_t uvc_yuyv2red(uvc_frame_t *in, uvc_frame_t *out) {
+  if (in->frame_format != UVC_FRAME_FORMAT_YUYV)
+    return UVC_ERROR_INVALID_PARAM;
+
+  if (uvc_ensure_frame_size(out, in->width * in->height) < 0)
+    return UVC_ERROR_NO_MEM;
+
+  out->width = in->width;
+  out->height = in->height;
+  out->frame_format = UVC_FRAME_FORMAT_RED8;
+  out->step = in->width;
+  out->sequence = in->sequence;
+  out->capture_time = in->capture_time;
+  out->capture_time_finished = in->capture_time_finished;
+  out->source = in->source;
+
+  uint8_t *pyuv = in->data;
+  uint8_t *pr = out->data;
+  uint8_t *pr_end = pr + out->data_bytes;
+
+  while (pr < pr_end) {
+    IYUYV2R_8(pyuv, pr);
+
+    pr += 8;
+    pyuv += 2 * 8;
+  }
+
+  return UVC_SUCCESS;
+}
+
 #define IYUYV2Y(pyuv, py) { \
     (py)[0] = (pyuv[0]); \
     }

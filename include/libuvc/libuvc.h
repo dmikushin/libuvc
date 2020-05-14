@@ -67,6 +67,8 @@ enum uvc_frame_format {
    */
   UVC_FRAME_FORMAT_YUYV,
   UVC_FRAME_FORMAT_UYVY,
+  /** 8-bit Red */
+  UVC_FRAME_FORMAT_RED8,
   /** 24-bit RGB */
   UVC_FRAME_FORMAT_RGB,
   UVC_FRAME_FORMAT_BGR,
@@ -788,9 +790,11 @@ uvc_error_t uvc_any2bgr(uvc_frame_t *in, uvc_frame_t *out);
 
 uvc_error_t uvc_yuyv2y(uvc_frame_t *in, uvc_frame_t *out);
 uvc_error_t uvc_yuyv2uv(uvc_frame_t *in, uvc_frame_t *out);
+uvc_error_t uvc_yuyv2red(uvc_frame_t *in, uvc_frame_t *out);
 
 #ifdef LIBUVC_HAS_JPEG
 uvc_error_t uvc_mjpeg2rgb(uvc_frame_t *in, uvc_frame_t *out);
+uvc_error_t uvc_mjpeg2red(uvc_frame_t *in, uvc_frame_t *out);
 uvc_error_t uvc_mjpeg2gray(uvc_frame_t *in, uvc_frame_t *out);
 #endif
 

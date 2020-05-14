@@ -142,7 +142,8 @@ static uvc_error_t uvc_mjpeg_convert(uvc_frame_t *in, uvc_frame_t *out) {
     insert_huff_tables(&dinfo);
   }
 
-  if (out->frame_format == UVC_FRAME_FORMAT_RGB)
+  if ((out->frame_format == UVC_FRAME_FORMAT_RGB) ||
+    (out->frame_format == UVC_FRAME_FORMAT_RED8))
     dinfo.out_color_space = JCS_RGB;
   else if (out->frame_format == UVC_FRAME_FORMAT_GRAY8)
     dinfo.out_color_space = JCS_GRAYSCALE;
@@ -154,12 +155,32 @@ static uvc_error_t uvc_mjpeg_convert(uvc_frame_t *in, uvc_frame_t *out) {
   jpeg_start_decompress(&dinfo);
 
   lines_read = 0;
-  while (dinfo.output_scanline < dinfo.output_height) {
-    unsigned char *buffer[1] = {( unsigned char*) out->data + lines_read * out->step };
-    int num_scanlines;
+  if (out->frame_format == UVC_FRAME_FORMAT_RED8) {
+    // Decompress as RGB into a temporary buffer.
+    unsigned char* rgb = malloc(3 * out->step * dinfo.output_height);
+    while (dinfo.output_scanline < dinfo.output_height) {
+      unsigned char *buffer[1] = {( unsigned char*) rgb };
+      int num_scanlines;
 
-    num_scanlines = jpeg_read_scanlines(&dinfo, buffer, 1);
-    lines_read += num_scanlines;
+      num_scanlines = jpeg_read_scanlines(&dinfo, buffer, 1);
+
+      // Pick up Red component only.
+      for (int i = 0, i_out = 0, iscanline = 0; iscanline < num_scanlines; iscanline++)
+        for (int j = 0; j < out->step; j++, i += 3, i_out++)
+          ((unsigned char*) out->data)[lines_read * out->step + i_out] = rgb[i];
+
+      lines_read += num_scanlines;
+    }
+    free(rgb);
+  }
+  else {
+    while (dinfo.output_scanline < dinfo.output_height) {
+      unsigned char *buffer[1] = {( unsigned char*) out->data + lines_read * out->step };
+      int num_scanlines;
+
+      num_scanlines = jpeg_read_scanlines(&dinfo, buffer, 1);
+      lines_read += num_scanlines;
+    }
   }
 
   jpeg_finish_decompress(&dinfo);
@@ -220,3 +241,33 @@ uvc_error_t uvc_mjpeg2gray(uvc_frame_t *in, uvc_frame_t *out) {
 
   return uvc_mjpeg_convert(in, out);
 }
+
+/** @brief Convert an MJPEG frame to RED8
+ * @ingroup frame
+ *
+ * @param in MJPEG frame
+ * @param out GRAY8 frame
+ */
+uvc_error_t uvc_mjpeg2red(uvc_frame_t *in, uvc_frame_t *out) {
+  struct jpeg_decompress_struct dinfo;
+  struct error_mgr jerr;
+  size_t lines_read;
+
+  if (in->frame_format != UVC_FRAME_FORMAT_MJPEG)
+    return UVC_ERROR_INVALID_PARAM;
+
+  if (uvc_ensure_frame_size(out, in->width * in->height) < 0)
+    return UVC_ERROR_NO_MEM;
+
+  out->width = in->width;
+  out->height = in->height;
+  out->frame_format = UVC_FRAME_FORMAT_RED8;
+  out->step = in->width;
+  out->sequence = in->sequence;
+  out->capture_time = in->capture_time;
+  out->capture_time_finished = in->capture_time_finished;
+  out->source = in->source;
+
+  return uvc_mjpeg_convert(in, out);
+}
+
